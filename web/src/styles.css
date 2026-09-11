@@ -115,6 +115,22 @@ body {
 #viewToggle:hover {
   background: #fff;
 }
+#fallbackNote {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100% - 32px));
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--ink);
+  background: #fff3c4e6;
+  border: 1px solid #d9b44a88;
+  pointer-events: none;
+}
 #view.orbit {
   cursor: grab;
   touch-action: none;

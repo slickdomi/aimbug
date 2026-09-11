@@ -2,7 +2,7 @@
 
 An FPS aim trainer played by the connectome of a male fruit fly, running live in the browser on WebGPU.
 
-**Play:** https://slickdomi.github.io/aimbug/ (needs a WebGPU browser) · by SlickDomi · [Support on Ko-fi](https://ko-fi.com/domi_zip)
+**Play:** https://slickdomi.github.io/aimbug/ (best with WebGPU; falls back to the CPU) · by SlickDomi · [Support on Ko-fi](https://ko-fi.com/domi_zip)
 
 All 166,700 neurons and 25.6 M connections of the [MaleCNS v1.0](https://male-cns.janelia.org/) connectome are simulated in real time. The arena is rendered into the fly's compound eyes.
 
@@ -67,7 +67,7 @@ docker run --rm -p 5173:5173 -v "$PWD:/app" -w /app node:22-alpine npx vite --ho
 docker run --rm -v "$PWD:/app" -w /app node:22-alpine npm run build
 ```
 
-The app needs a browser with WebGPU: current Chrome or Edge, or Firefox with WebGPU enabled. On Linux Chrome, `chrome://flags/#enable-unsafe-webgpu` plus Vulkan may be required.
+WebGPU (current Chrome, Edge, Safari, or Firefox with WebGPU enabled) runs the brain in real time and enables third person. Without it, or with `?cpu=1`, the same model runs in a web worker on the CPU. That fallback draws the arena and brain view with Canvas 2D, is first person only, and runs slower than real time (about 0.3× on a desktop CPU). The game is timed in brain time, so it plays in slow motion rather than aiming worse.
 
 URL knobs:
 - `?mode=static|strafe|duo`

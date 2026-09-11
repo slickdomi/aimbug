@@ -1,12 +1,50 @@
 import { Sound } from "./audio";
-import { GAME, MODEL } from "./config";
+import { DATA_URL, GAME, MODEL } from "./config";
 import { loadBrainData } from "./data/loader";
-import type { BrainData } from "./data/types";
-import { Arena, type ViewMode } from "./game/arena";
-import { Game, type Mode } from "./game/game";
-import { loadSprites } from "./game/sprites";
+import type { BrainInfo } from "./data/types";
+import { Arena, type Orbit, type ViewMode } from "./game/arena";
+import { Arena2D } from "./game/arena2d";
+import { Game, type Mode, type Target } from "./game/game";
+import { loadSpriteImage, loadSprites, spriteUrl, type SpriteCell } from "./game/sprites";
 import { Brain, type ProbeGroup, type Readback } from "./sim/brain";
+import { CpuBackend } from "./sim/cpuBackend";
+import type { SceneState } from "./sim/cpuSim";
 import { BrainView } from "./ui/brainview";
+import { BrainView2D } from "./ui/brainview2d";
+
+/** What the game loop needs from either brain backend (WebGPU or the CPU worker). */
+interface BrainControls {
+  onReadback: ((r: Readback) => void) | null;
+  setArousal(mV: number): void;
+  writeParams(): void;
+  reset(includeGraded?: boolean): void;
+}
+
+/** What the game loop needs from either renderer (WebGPU or Canvas 2D). */
+interface ArenaLike {
+  mode: ViewMode;
+  orbit: Orbit;
+  flash: number;
+  panic: number;
+  song: number;
+  writeScene(game: Game): void;
+  addTracer(game: Game, hit: Target | null): void;
+}
+
+async function initWebGpu(): Promise<GPUDevice | null> {
+  if (!navigator.gpu) return null;
+  const adapter = (await navigator.gpu.requestAdapter({ powerPreference: "high-performance" })) ?? (await navigator.gpu.requestAdapter());
+  if (!adapter) return null;
+  const want = (name: keyof GPUSupportedLimits, value: number) => Math.min(value, adapter.limits[name] as number);
+  console.log("WebGPU adapter:", adapter.info?.vendor, adapter.info?.architecture, adapter.info?.description);
+  return adapter.requestDevice({
+    requiredLimits: {
+      maxStorageBufferBindingSize: want("maxStorageBufferBindingSize", 512 * 2 ** 20),
+      maxBufferSize: want("maxBufferSize", 512 * 2 ** 20),
+      maxStorageBuffersPerShaderStage: want("maxStorageBuffersPerShaderStage", 8),
+    },
+  });
+}
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -18,7 +56,7 @@ const LOADING_QUIPS = [
   "explaining FPS games to a fly",
 ];
 
-function probesFor(d: BrainData): { groups: ProbeGroup[]; idx: Uint32Array } {
+function probesFor(d: BrainInfo): { groups: ProbeGroup[]; idx: Uint32Array } {
   const names = ["DNa02", "DNa01", "DNp53", "pIP10", "DNp01", "LC4", "LPLC2", "LC10a", "AOTU019"];
   const groups: ProbeGroup[] = [];
   const idx: number[] = [];
@@ -87,74 +125,129 @@ async function main() {
     loadLabel.textContent = "the fly died";
   };
 
-  if (!navigator.gpu) {
-    fail("WebGPU is not available in this browser. Try a recent Chrome, Edge, or Firefox Nightly with WebGPU enabled.");
-    return;
-  }
-  const adapter = (await navigator.gpu.requestAdapter({ powerPreference: "high-performance" })) ?? (await navigator.gpu.requestAdapter());
-  if (!adapter) {
-    fail("No WebGPU adapter found.");
-    return;
-  }
-  const want = (name: keyof GPUSupportedLimits, value: number) => Math.min(value, adapter.limits[name] as number);
-  console.log("WebGPU adapter:", adapter.info?.vendor, adapter.info?.architecture, adapter.info?.description);
-  const device = await adapter.requestDevice({
-    requiredLimits: {
-      maxStorageBufferBindingSize: want("maxStorageBufferBindingSize", 512 * 2 ** 20),
-      maxBufferSize: want("maxBufferSize", 512 * 2 ** 20),
-      maxStorageBuffersPerShaderStage: want("maxStorageBuffersPerShaderStage", 8),
-    },
-  });
-  device.lost.then((info) => fail(`GPU device lost: ${info.message}`));
-  device.addEventListener("uncapturederror", (ev) => console.error("WebGPU:", (ev as GPUUncapturedErrorEvent).error.message));
-
+  // URL overrides, e.g. ?mode=static&yaw=0 (yaw may be negative: mirrored steering), ?cpu=1 forces the fallback.
+  const query = new URLSearchParams(location.search);
   let quip = 0;
-  const data = await loadBrainData((label, frac) => {
+  const progress = (label: string, frac: number) => {
     loadLabel.textContent = `${label} · ${LOADING_QUIPS[Math.floor(quip++ / 40) % LOADING_QUIPS.length]}`;
     loadBar.style.width = `${Math.round(frac * 100)}%`;
-  }).catch((e: Error) => {
-    fail(e.message);
+  };
+  const game = new Game();
+  const sound = new Sound();
+  const viewCanvas = $<HTMLCanvasElement>("view");
+  const device = query.has("cpu") ? null : await initWebGpu().catch((e) => (console.warn("WebGPU init failed:", e), null));
+
+  // Everything backend specific is set up here; the game loop below only uses these.
+  let data: BrainInfo;
+  let brain: BrainControls;
+  let arena: ArenaLike;
+  let credits: SpriteCell[];
+  let probes: { groups: ProbeGroup[]; idx: Uint32Array };
+  let canThirdPerson: boolean;
+  let readyForStep: () => boolean;
+  let renderFrame: (now: number, realDt: number, brainMs: number) => void;
+  const debug = { game, MODEL, GAME, seizures: () => seizures } as Record<string, unknown>;
+  try {
+    if (device) {
+      device.lost.then((info) => fail(`GPU device lost: ${info.message}`));
+      device.addEventListener("uncapturederror", (ev) => console.error("WebGPU:", (ev as GPUUncapturedErrorEvent).error.message));
+      const full = await loadBrainData(progress);
+      const format = navigator.gpu.getPreferredCanvasFormat();
+      const sprites = await loadSprites(device);
+      const gpuArena = new Arena(device, viewCanvas, format, sprites);
+      probes = probesFor(full);
+      const gpuBrain = new Brain(device, full, gpuArena.sceneBuffer, sprites, probes.groups, probes.idx);
+      const brainView = new BrainView(device, $<HTMLCanvasElement>("brain"), $<HTMLCanvasElement>("eye"), format, gpuBrain, full);
+      data = full;
+      brain = gpuBrain;
+      arena = gpuArena;
+      credits = sprites.cells;
+      canThirdPerson = true;
+      readyForStep = () => true;
+      renderFrame = (now, realDt, brainMs) => {
+        const encoder = device.createCommandEncoder();
+        gpuBrain.encode(encoder, brainMs);
+        gpuArena.render(encoder, now / 1000, game);
+        brainView.render(encoder, gpuBrain, realDt);
+        device.queue.submit([encoder.finish()]);
+        gpuBrain.afterSubmit();
+      };
+      // Debug: most active cell types (spike trace ~ Hz * actTau), for chasing runaway activity.
+      debug.topActive = async (k = 20) => {
+        const act = await gpuBrain.readActivity();
+        const byType = new Map<string, { sum: number; n: number; sc: string }>();
+        for (let i = full.ng; i < full.n; i++) {
+          const key = full.types[full.typeId[i]] || "(untyped)";
+          const e = byType.get(key) ?? { sum: 0, n: 0, sc: full.meta.superclasses[full.superclass[i]] };
+          e.sum += act[i];
+          e.n++;
+          byType.set(key, e);
+        }
+        const hz = 1000 / MODEL.actTau;
+        return [...byType.entries()]
+          .sort((a, b) => b[1].sum - a[1].sum)
+          .slice(0, k)
+          .map(([t, e]) => `${t}(${e.sc}) n=${e.n} total ${(e.sum * hz).toFixed(0)} Hz, ${((e.sum * hz) / e.n).toFixed(0)} Hz/cell`);
+      };
+    } else {
+      // No WebGPU: same model in a CPU worker, Canvas 2D rendering, first person only.
+      const cpu = new CpuBackend(MODEL);
+      const req = { url: new URL(DATA_URL, location.href).href, prune: MODEL.prune, laminaWeight: MODEL.laminaWeight, wSyn: MODEL.wSyn, tauS: MODEL.tauS };
+      data = await cpu.init(req, new URL(spriteUrl, location.href).href, progress);
+      const sprite = await loadSpriteImage();
+      probes = probesFor(data);
+      cpu.setProbes(probes.idx);
+      const arena2d = new Arena2D(viewCanvas, sprite.image, sprite.cells);
+      const view2d = new BrainView2D($<HTMLCanvasElement>("brain"), $<HTMLCanvasElement>("eye"), data);
+      cpu.onViz = (act, graded) => view2d.setActivity(act, graded);
+      brain = cpu;
+      arena = arena2d;
+      credits = sprite.cells;
+      canThirdPerson = false;
+      readyForStep = () => !cpu.busy;
+      let lastViz = 0;
+      renderFrame = (now, realDt, brainMs) => {
+        if (brainMs > 0) {
+          const wantViz = now - lastViz > 150;
+          if (wantViz) lastViz = now;
+          cpu.step(brainMs, sceneFor(game), wantViz);
+        }
+        arena2d.render(now / 1000, game);
+        view2d.render(realDt);
+      };
+      const note = $("fallbackNote");
+      note.hidden = false;
+      note.textContent = navigator.gpu && !query.has("cpu")
+        ? "No usable WebGPU adapter: running the brain on the CPU (slower, first person only)"
+        : "WebGPU not available: running the brain on the CPU (slower, first person only)";
+    }
+  } catch (e) {
+    fail(e instanceof Error ? e.message : String(e));
     throw e;
-  });
+  }
   loadLabel.textContent = `${data.n.toLocaleString()} neurons · ${data.stats.spikeEdges.toLocaleString()} spiking + ${data.stats.gradedEdges.toLocaleString()} graded + ${data.stats.ifaceEdges.toLocaleString()} coupling synapses`;
   loadBar.style.width = "100%";
-
-  const format = navigator.gpu.getPreferredCanvasFormat();
-  const game = new Game();
-  const sprites = await loadSprites(device);
-  $("photoCredits").innerHTML = sprites.cells
+  $("photoCredits").innerHTML = credits
     .map((c) => `<a href="${c.url}" target="_blank" rel="noopener">${c.credit}</a> (<a href="${c.licenseUrl}" target="_blank" rel="noopener">${c.license}</a>, background removed)`)
     .join("; ");
-  const arena = new Arena(device, $<HTMLCanvasElement>("view"), format, sprites);
-  const probes = probesFor(data);
-  const brain = new Brain(device, data, arena.sceneBuffer, sprites, probes.groups, probes.idx);
-  const brainView = new BrainView(device, $<HTMLCanvasElement>("brain"), $<HTMLCanvasElement>("eye"), format, brain, data);
   const rates = new Rates(probes.groups);
-  const sound = new Sound();
+  debug.rates = rates;
+  debug.brain = brain;
+  debug.backend = device ? "webgpu" : "cpu";
   // Debug handle for the headless smoke test and the devtools console.
-  const debug = { game, rates, brain, MODEL, GAME, seizures: () => seizures } as Record<string, unknown>;
-  // Debug: most active cell types (spike trace ~ Hz * actTau), for chasing runaway activity.
-  debug.topActive = async (k = 20) => {
-    const act = await brain.readActivity();
-    const byType = new Map<string, { sum: number; n: number; sc: string }>();
-    for (let i = data.ng; i < data.n; i++) {
-      const key = data.types[data.typeId[i]] || "(untyped)";
-      const e = byType.get(key) ?? { sum: 0, n: 0, sc: data.meta.superclasses[data.superclass[i]] };
-      e.sum += act[i];
-      e.n++;
-      byType.set(key, e);
-    }
-    const hz = 1000 / MODEL.actTau;
-    return [...byType.entries()]
-      .sort((a, b) => b[1].sum - a[1].sum)
-      .slice(0, k)
-      .map(([t, e]) => `${t}(${e.sc}) n=${e.n} total ${(e.sum * hz).toFixed(0)} Hz, ${((e.sum * hz) / e.n).toFixed(0)} Hz/cell`);
-  };
   (window as unknown as { aimbug: object }).aimbug = debug;
 
+  /** Scene description for the CPU eye (the WebGPU path uploads it as a uniform instead). */
+  function sceneFor(g: Game): SceneState {
+    return {
+      heading: g.heading,
+      pitch: g.pitch,
+      tanR: Math.tan((g.radiusDeg * Math.PI) / 180),
+      targets: g.targets.map((t) => ({ az: t.az, el: t.el, visible: t.alive || t.flash > 0, flash: t.flash, flip: t.facing, variant: t.variant })),
+    };
+  }
+
   // ---- controls -------------------------------------------------------------
-  // URL overrides, e.g. ?mode=static&yaw=0 (yaw may be negative: mirrored steering).
-  const query = new URLSearchParams(location.search);
   const num = (key: string, fallback: number) => (query.has(key) ? parseFloat(query.get(key)!) : fallback);
   let yawGain = num("yaw", GAME.yawGain);
   let pitchGain = num("pitch", GAME.pitchGain);
@@ -220,7 +313,9 @@ async function main() {
   };
   // First / third person. In third person, drag on the arena orbits around the fly and the wheel zooms.
   const viewBtn = $<HTMLButtonElement>("viewToggle");
-  const setView = (mode: ViewMode) => {
+  viewBtn.hidden = !canThirdPerson;
+  const setView = (requested: ViewMode) => {
+    const mode = canThirdPerson ? requested : "first";
     arena.mode = mode;
     viewBtn.textContent = mode === "first" ? "🎥 Third person (V)" : "👁 First person (V)";
     $("crosshair").hidden = mode === "third";
@@ -228,7 +323,6 @@ async function main() {
   };
   viewBtn.onclick = () => setView(arena.mode === "first" ? "third" : "first");
   setView(query.get("view") === "3" ? "third" : "first");
-  const viewCanvas = $<HTMLCanvasElement>("view");
   let orbitDrag: { x: number; y: number } | null = null;
   viewCanvas.addEventListener("pointerdown", (e) => {
     if (arena.mode !== "third") return;
@@ -382,6 +476,7 @@ async function main() {
 
   // ---- loop -------------------------------------------------------------------
   let last = performance.now();
+  let lastDispatch = last;
   const frame = (now: number) => {
     const elapsed = now - last;
     const realDt = Math.min(100, elapsed);
@@ -390,22 +485,22 @@ async function main() {
     // Keep the frame rate up by simulating less brain time per frame on slow GPUs.
     if (elapsed > 24) budget = Math.max(4, budget * 0.95);
     else if (elapsed < 19) budget = Math.min(GAME.maxBrainMsPerFrame, budget * 1.02);
-    const brainMs = paused ? 0 : Math.min(realDt, budget);
+    // WebGPU simulates every frame. The CPU worker takes a new chunk only when it is done with
+    // the last one, so on a slow CPU brain (and game) time simply runs slower than real time.
+    let brainMs = 0;
+    if (!paused && readyForStep()) {
+      brainMs = device ? Math.min(realDt, budget) : Math.min(now - lastDispatch, GAME.maxBrainMsPerFrame);
+      lastDispatch = now;
+    }
     brainSpeed += (brainMs / Math.max(1, elapsed) - brainSpeed) * 0.05;
 
     const yawRate = yawGain * (rates.get("DNa02", 2) - rates.get("DNa02", 1));
     const pitchRate = pitchGain * pitchDrive() - GAME.neckSpring * ((game.pitch * 180) / Math.PI);
-    if (!paused) game.update(brainMs, yawRate, pitchRate);
+    if (brainMs > 0) game.update(brainMs, yawRate, pitchRate);
     arena.flash = Math.max(0, arena.flash - realDt / 250);
     arena.panic = Math.max(0, arena.panic - realDt / 400);
     arena.writeScene(game);
-
-    const encoder = device.createCommandEncoder();
-    brain.encode(encoder, brainMs);
-    arena.render(encoder, now / 1000, game);
-    brainView.render(encoder, brain, realDt);
-    device.queue.submit([encoder.finish()]);
-    brain.afterSubmit();
+    renderFrame(now, realDt, brainMs);
     updateHud(now);
     requestAnimationFrame(frame);
   };
@@ -416,6 +511,7 @@ async function main() {
     sound.start();
     $("loading").remove();
     last = performance.now();
+    lastDispatch = last;
     requestAnimationFrame(frame);
   };
 }

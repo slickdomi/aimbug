@@ -48,7 +48,10 @@ export interface BrainData {
   stats: { spikeEdges: number; gradedEdges: number; ifaceEdges: number };
 }
 
-export type WorkerIn = { url: string; prune: number; laminaWeight: number; wSyn: number; tauS: number };
+/** The parts of BrainData the main thread needs when the brain itself runs in a CPU worker. */
+export type BrainInfo = Pick<BrainData, "meta" | "types" | "n" | "ng" | "typeId" | "side" | "superclass" | "pos" | "visUnits" | "visCount" | "stats">;
+
+export type WorkerIn ={ url: string; prune: number; laminaWeight: number; wSyn: number; tauS: number };
 export type WorkerOut =
   | { kind: "progress"; label: string; done: number; total: number }
   | { kind: "done"; data: BrainData }

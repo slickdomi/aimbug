@@ -12,7 +12,14 @@ export interface SpriteAtlas {
   cells: SpriteCell[];
 }
 
-const spriteUrl = DATA_URL.replace(/data\/malecns-v1$/, "sprites");
+export const spriteUrl = DATA_URL.replace(/data\/malecns-v1$/, "sprites");
+
+/** Atlas as a plain image, for the Canvas 2D fallback renderer. */
+export async function loadSpriteImage(): Promise<{ image: ImageBitmap; cells: SpriteCell[] }> {
+  const meta: { cells: SpriteCell[] } = await (await fetch(`${spriteUrl}/females.json`)).json();
+  const image = await createImageBitmap(await (await fetch(`${spriteUrl}/females.png`)).blob());
+  return { image, cells: meta.cells };
+}
 
 /** Loads the female-fly photo atlas as a mipmapped texture (mips built with canvas downscaling). */
 export async function loadSprites(device: GPUDevice): Promise<SpriteAtlas> {
