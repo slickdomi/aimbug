@@ -1,0 +1,15 @@
+{
+  "name": "aimbug",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@webgpu/types": "0.1.72",
+    "typescript": "7.0.2",
+    "vite": "8.2.2"
+  }
+}

@@ -1,0 +1,5 @@
+data/raw/
+.cache/
+web/node_modules/
+web/dist/
+__pycache__/

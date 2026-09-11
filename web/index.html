@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aimbug</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪰</text></svg>" />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main id="stage">
+      <canvas id="view"></canvas>
+      <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+      <button id="viewToggle" type="button">🎥 Third person (V)</button>
+      <div id="hitmarker">✕</div>
+      <div id="scorePop" aria-live="polite"></div>
+      <div id="panic">GIANT FIBER PANIC</div>
+      <div id="seizure"></div>
+
+      <header id="title">
+        <h1>AIMBUG</h1>
+        <p>aimbot = 166,700 real neurons of a male fruit fly<br />no training, no enemy coordinates, just the connectome</p>
+      </header>
+
+      <section id="score" aria-label="Score">
+        <div><b id="scoreTotal">0</b><span>score</span></div>
+        <div><b id="kills">0</b><span>kills</span></div>
+        <div><b id="acc">–</b><span>accuracy</span></div>
+        <div><b id="ttk">–</b><span>avg TTK</span></div>
+        <div><b id="ontarget">–</b><span>on target</span></div>
+      </section>
+
+      <footer id="brainstats"></footer>
+      <nav id="links" aria-label="Project links">
+        <a id="repoLink" href="https://github.com/slickdomi/aimbug" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          Source
+        </a>
+        <a href="https://ko-fi.com/domi_zip" target="_blank" rel="noopener">☕ Support on Ko-fi</a>
+      </nav>
+    </main>
+
+    <aside id="panel">
+      <div class="card">
+        <h2>Brain <small>soma positions, live activity · drag to rotate</small></h2>
+        <canvas id="brain"></canvas>
+      </div>
+      <div class="card">
+        <h2>What the fly sees <small>L2 lamina columns, both eyes</small></h2>
+        <canvas id="eye"></canvas>
+      </div>
+      <div class="card">
+        <h2>Motor output</h2>
+        <div class="meter"><label>DNa02 steering (left / right)</label><div class="lr"><span id="dnaL"></span><span id="dnaR"></span></div></div>
+        <div class="meter"><label>DNp53 pitch (down / up)</label><div class="lr"><span id="pitchD"></span><span id="pitchU"></span></div></div>
+        <div class="meter"><label>LC4 + LPLC2 (left / right)</label><div class="lr"><span id="lcL"></span><span id="lcR"></span></div></div>
+        <div class="meter"><label>pIP10 courtship song (fires at half bar)</label><div class="bar"><span id="song"></span></div></div>
+        <div class="meter"><label>DNp01 giant fiber = panic</label><div class="bar"><span id="gf"></span></div></div>
+      </div>
+      <div class="card controls">
+        <h2>Knobs</h2>
+        <div class="knob">
+          <div class="knob-head"><label for="mode">Mode</label><button class="info" type="button" aria-expanded="false" aria-label="About mode">i</button></div>
+          <select id="mode">
+            <option value="strafe">Strafe (moving target)</option>
+            <option value="static">Static</option>
+            <option value="duo">Two females (chaos)</option>
+          </select>
+          <p class="explain" hidden>
+            Strafe: one female drifts sideways and up and down. Static: she sits still. Two females: both are visible
+            at once and pull the fly's steering in two directions. A female that isn't shot flies off after 6 s.
+          </p>
+        </div>
+        <div class="knob">
+          <div class="knob-head"><label for="arousal">Arousal (P1/pC1 drive)</label><button class="info" type="button" aria-expanded="false" aria-label="About arousal">i</button><output id="arousalV"></output></div>
+          <input id="arousal" type="range" min="0" max="10" step="0.5" />
+          <p class="explain" hidden>
+            Constant input to the male's P1/pC1 courtship-arousal neurons. Without it pIP10 never sings, so the fly
+            never fires. Around 8 mV and up he sings even at an empty room.
+          </p>
+        </div>
+        <div class="knob">
+          <div class="knob-head"><label for="yaw">Neck gain, yaw</label><button class="info" type="button" aria-expanded="false" aria-label="About yaw gain">i</button><output id="yawV"></output></div>
+          <input id="yaw" type="range" min="0" max="15" step="0.5" />
+          <p class="explain" hidden>
+            Turning speed per Hz of difference between the right and left DNa02 steering neurons. Low values make the
+            fly sluggish; high values make it overshoot and wobble. 0 means no turning, a useful control: aim
+            disappears.
+          </p>
+        </div>
+        <div class="knob">
+          <div class="knob-head"><label for="pitch">Neck gain, pitch</label><button class="info" type="button" aria-expanded="false" aria-label="About pitch gain">i</button><output id="pitchV"></output></div>
+          <input id="pitch" type="range" min="0" max="20" step="0.5" />
+          <p class="explain" hidden>
+            Speed of looking up or down. It follows DNp53, which fires for targets above, balanced against LC4 and
+            LPLC2, which fire for any visible target. A weak spring pulls the view back to the horizon. 0 keeps the
+            view level.
+          </p>
+        </div>
+        <div class="knob">
+          <div class="knob-head"><label for="trigger">Trigger discipline</label><button class="info" type="button" aria-expanded="false" aria-label="About trigger discipline">i</button><output id="triggerV"></output></div>
+          <input id="trigger" type="range" min="2" max="40" step="1" />
+          <p class="explain" hidden>
+            How strong the pIP10 courtship song (left + right, smoothed) must get before the fly fires. It fires once per
+            song bout. Lower values mean more shots. The song rate doesn't depend on where the crosshair is, so this
+            changes how often the fly shoots, not how well.
+          </p>
+        </div>
+        <div class="knob">
+          <div class="knob-head"><label for="ggain">Optic lobe gain</label><button class="info" type="button" aria-expanded="false" aria-label="About optic lobe gain">i</button><output id="ggainV"></output></div>
+          <input id="ggain" type="range" min="1.5" max="3" step="0.05" />
+          <p class="explain" hidden>
+            Recurrent gain of the graded (non-spiking) optic lobe. Higher values carry visual signals further. Above
+            about 2.39 the lamina feedback loops become unstable and activity slowly saturates.
+          </p>
+        </div>
+        <div class="knob">
+          <div class="knob-head"><label for="couple">Optic lobe → brain coupling</label><button class="info" type="button" aria-expanded="false" aria-label="About coupling">i</button><output id="coupleV"></output></div>
+          <input id="couple" type="range" min="200" max="4000" step="50" />
+          <p class="explain" hidden>
+            How strongly optic lobe activity drives the spiking visual projection neurons (LC4, LPLC2, …) that feed
+            the central brain. Too low and the fly is blind; too high and both hemispheres fire regardless of where
+            the target is.
+          </p>
+        </div>
+        <div class="knob">
+          <div class="knob-head"><label for="size">Target size (deg)</label><button class="info" type="button" aria-expanded="false" aria-label="About target size">i</button><output id="sizeV"></output></div>
+          <input id="size" type="range" min="8" max="26" step="1" />
+          <p class="explain" hidden>
+            Half the female's body length as seen by the fly, which is how far away she is. The fly's eye samples
+            the world every 4.8°, so below about 13° she covers too few eye columns and the fly barely sees her.
+          </p>
+        </div>
+        <div class="buttons">
+          <button id="pause">Pause</button>
+          <button id="resetBrain">Reset brain</button>
+          <button id="resetScore">Reset score</button>
+          <button id="mute">Sound on</button>
+        </div>
+      </div>
+      <p class="credits">
+        Connectome: <a href="https://male-cns.janelia.org/" target="_blank" rel="noopener">Male CNS v1.0</a> (FlyEM/HHMI Janelia, Univ. of Cambridge,
+        MRC LMB, Google Research;
+        <a href="https://doi.org/10.1101/2025.10.09.680999" target="_blank" rel="noopener">Berg et al.</a>),
+        <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>, re-encoded.
+        Spiking model after Shiu et al. 2024; optic lobe modelled as graded units.
+        Aiming emerges from photoreceptors → optic lobe → LC4/LPLC2 → AOTU019 → DNa02 (yaw) and DNp53 (pitch).
+        <br />Target photos: <span id="photoCredits"></span>.
+      </p>
+    </aside>
+
+    <div id="loading">
+      <div class="box">
+        <h1>AIMBUG</h1>
+        <p id="loadLabel">booting</p>
+        <div class="progress"><span id="loadBar"></span></div>
+        <button id="start" hidden>Release the fly</button>
+        <p id="loadError" class="error" hidden></p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

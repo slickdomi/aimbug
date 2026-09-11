@@ -1,0 +1,29 @@
+{
+ "cellSize": 512,
+ "cells": [
+  {
+   "x": 0,
+   "u0": 0.0078125,
+   "v0": 0.146484375,
+   "u1": 0.9921875,
+   "v1": 0.8515625,
+   "credit": "Rolf Dietrich Brecher, \"Drosophila melanogaster ♀\"",
+   "license": "CC BY 2.0",
+   "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+   "url": "https://commons.wikimedia.org/wiki/File:Drosophila_melanogaster_%E2%99%80_(38978426500).jpg",
+   "modifications": "background removed, cropped, resized"
+  },
+  {
+   "x": 1,
+   "u0": 0.0078125,
+   "v0": 0.232421875,
+   "u1": 0.9921875,
+   "v1": 0.765625,
+   "credit": "Hannah Davis, \"Standing female Drosophila melanogaster\"",
+   "license": "CC BY-SA 4.0",
+   "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "url": "https://commons.wikimedia.org/wiki/File:Standing_female_Drosophila_melanogaster.jpg",
+   "modifications": "background removed, cropped, resized"
+  }
+ ]
+}
