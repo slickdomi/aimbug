@@ -29,7 +29,10 @@ export const MODEL = {
   laminaWeight: 0.5, // synthetic R1-6 input to L1-3 (lamina is mostly outside the reconstruction)
   // graded -> spiking release scale (Hz-equivalent per unit activity). Tuned in 2-minute GPU trials
   // (13 deg targets): 1800 -> ~6 % accuracy / ~10 % on target, 3000 -> ~15 % / ~19 %, 3600 overshoots.
-  coupling: 3000,
+  // Retuned with 19 deg targets together with GAME.neckSpring (5-minute GPU trials, 4 runs each):
+  // 3000 + spring 0.6 -> 37 % accuracy, 14 kills/min; 3400 + spring 0.3 -> 45 %, 17 kills/min.
+  // 2600 is clearly worse. The extra drive costs a few more seizures (~1 per 3 min instead of 5).
+  coupling: 3400,
   arousal: 6, // tonic mV into P1/pC1 (male courtship arousal)
   actTau: 120, // ms, spike trace for visualisation
 };
@@ -44,7 +47,9 @@ export const GAME = {
   pitchGain: 8, // deg/s per Hz
   pitchRef: 0.1, // DNp53 Hz per LC4+LPLC2 Hz that means "level"
   pitchTau: 250, // ms, slower filter: DNp53 fires only a few spikes per second
-  neckSpring: 0.6, // 1/s pull back towards the horizon
+  // 1/s pull back towards the horizon. Weaker lets DNp53 hold the target: share of time inside the
+  // hitbox for spring 1.2 / 0.6 / 0.3 / 0.15 / 0 was 35 / 42 / 45 / 41 / 41 % (non-lethal trials).
+  neckSpring: 0.3,
   maxPitchDeg: 50,
   // Trigger: one shot per pIP10 song bout (filtered rate crossing the threshold), not per spike.
   // Song rate does not depend on aim (analyze_samples.py), so this only sets how trigger-happy it is.
@@ -55,8 +60,8 @@ export const GAME = {
   seizureSpikesPerSec: 90000,
   seizureMs: 300,
   // Half body length as seen by the fly (her distance). The eye samples every 4.8 deg, so below
-  // ~13 deg the female covers too few columns (11 deg: ~1 % on target). With coupling 3000:
-  // 16 deg -> ~20 % accuracy, 19 deg -> ~50 % accuracy.
+  // ~13 deg the female covers too few columns (11 deg: ~1 % on target). With coupling 3000 and
+  // spring 0.6: 16 deg -> ~21 % accuracy, 19 deg -> ~37 % accuracy.
   targetRadiusDeg: 19,
   maxBrainMsPerFrame: 25,
   maxStepsPerFrame: 64,

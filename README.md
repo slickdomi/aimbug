@@ -31,7 +31,7 @@ These are 2-minute trials on an RX 9070, measured by `web/scripts/smoke.mjs`. Fe
 
 In an earlier 90 s run, mirroring pitch (gain −8) dropped time on target to 9.3 %.
 
-The table above used a 16° target radius and the old coupling of 1800. With the current defaults (coupling 3000, 19° targets), a 2.5-minute run reached **51 % accuracy, 44 % time on target, and 18 kills/min**. Target elevation is capped so the whole female stays within the ±50° neck pitch range.
+The table above used a 16° target radius and the old coupling of 1800. With the current defaults (coupling 3400, neck spring 0.3, 19° targets), four 5-minute runs averaged **45 % accuracy (44–47 %), 43 % time on target, and 17 kills/min**. The previous defaults (coupling 3000, spring 0.6) averaged 37 % accuracy (35–39 %), 45 % time on target, and 14 kills/min in the same trials. Target elevation is capped so the whole female stays within the ±50° neck pitch range.
 
 Size is a hard limit of the fly's eye, which samples every 4.8°:
 
@@ -117,15 +117,17 @@ The model is validated in `pipeline/sim_hybrid.py`, a NumPy reference that uses 
 
 `τ da/dt = −a + 2.3 · Σ frac_ij · sign_j · clamp(a_j, −1, 4)`, with τ = 20 ms and exponential Euler at 8.33 ms.
 
-`frac_ij` is the connectome input fraction. Edges below 0.5 % are pruned, which keeps 3.9 M of 8.9 M with no change in behaviour. Deviations of graded activity from rest drive spiking cells with a coupling of 3000 Hz-equivalent release.
+`frac_ij` is the connectome input fraction. Edges below 0.5 % are pruned, which keeps 3.9 M of 8.9 M with no change in behaviour. Deviations of graded activity from rest drive spiking cells with a coupling of 3400 Hz-equivalent release.
 
 That coupling was tuned in 2-minute GPU trials with 13° targets (yaw gain 10, pitch gain 8):
 
 | coupling | accuracy | time on target |
 |---|---|---|
 | 1800 | ~6 % | ~10 % |
-| 3000 (default) | 13–18 % | 17–22 % |
+| 3000 | 13–18 % | 17–22 % |
 | 3600 | 13 % | 11 % |
+
+With 19° targets, the coupling and the neck spring were retuned together in 5-minute GPU trials (four runs each). A coupling of 3400 with a spring of 0.3 beats 3000 with 0.6: 45 % vs 37 % accuracy, 17 vs 14 kills/min. A weaker coupling (2600) or a stiffer spring (1.2) is clearly worse. The stronger drive costs a few more seizures, about one every 3 minutes instead of every 5.
 
 Lower arousal or a stricter trigger mostly stops the fly from singing, so it barely fires.
 
@@ -133,7 +135,7 @@ The gain is 2.3 rather than 2.5 on purpose. The lamina feedback loops (L1/L2 ↔
 
 **Pitch:** DNp53 (both hemispheres) is the only descending neuron that tracks target elevation (`pipeline/pitch_scan.py`). No descending neuron prefers targets below the fly. So DNp53 is balanced against LC4 + LPLC2, which report that a target is visible at any elevation:
 
-`pitch rate = 8 · (DNp53 − 0.1 · LC) − 0.6 · pitch`
+`pitch rate = 8 · (DNp53 − 0.1 · LC) − 0.3 · pitch`
 
 **Seizures:** the cholinergic lLN1_bc clique in the antennal lobe gets about 4 mV of recurrent drive per Hz of its own activity. Adaptation and synaptic saturation can't hold it, and synaptic depression strong enough to would silence the visual pathway. Every few minutes it ignites the olfactory system: the brain jumps to over 90 k spikes/s. When that happens the spiking state is reset and the HUD counts a seizure.
 
