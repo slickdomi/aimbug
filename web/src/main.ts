@@ -317,7 +317,7 @@ async function main() {
   const setView = (requested: ViewMode) => {
     const mode = canThirdPerson ? requested : "first";
     arena.mode = mode;
-    viewBtn.textContent = mode === "first" ? "🎥 Third person (V)" : "👁 First person (V)";
+    viewBtn.innerHTML = mode === "first" ? "🎥 Third person <span class=\"kbd\">(V)</span>" : "👁 First person <span class=\"kbd\">(V)</span>";
     $("crosshair").hidden = mode === "third";
     $("view").classList.toggle("orbit", mode === "third");
   };

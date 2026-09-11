@@ -45,7 +45,10 @@ if (adapter === "swiftshader") {
 const browser = await chromium.launch(
   process.env.CHROMIUM ? { headless: true, executablePath: process.env.CHROMIUM, args: [...args, "--headless=new", "--no-sandbox"] } : { headless: true, channel: "chromium", args },
 );
-const page = await browser.newPage({ viewport: { width: 1280, height: 760 } });
+// MOBILE=1 emulates a phone (iPhone-sized viewport, touch, coarse pointer)
+const page = await browser.newPage(
+  process.env.MOBILE ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 760 } },
+);
 const logs = [];
 page.on("console", (m) => logs.push(`[${m.type()}] ${m.text()}`));
 page.on("pageerror", (e) => logs.push(`[pageerror] ${e.message}`));
