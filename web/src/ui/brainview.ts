@@ -2,6 +2,7 @@ import brainSrc from "../shaders/brainview.wgsl?raw";
 import eyeSrc from "../shaders/eyeview.wgsl?raw";
 import type { BrainData } from "../data/types";
 import type { Brain } from "../sim/brain";
+import { sparseBoost } from "./density";
 
 function setup(canvas: HTMLCanvasElement, device: GPUDevice, format: GPUTextureFormat) {
   const ctx = canvas.getContext("webgpu") as GPUCanvasContext;
@@ -55,7 +56,8 @@ export class BrainView {
     this.brainCtx = setup(brainCanvas, device, format);
     this.eyeCtx = setup(eyeCanvas, device, format);
 
-    // Soma positions -> vec4 (w = has position). Frame the brain + ventral nerve cord.
+    // Soma positions -> vec4 (w = weight of the grey anatomy colour, 0 = no position). Frame the brain + ventral nerve cord.
+    const boost = sparseBoost(d.pos, d.n);
     const pos = new Float32Array(4 * d.n);
     const lo = [Infinity, Infinity, Infinity];
     const hi = [-Infinity, -Infinity, -Infinity];
@@ -68,7 +70,7 @@ export class BrainView {
         lo[k] = Math.min(lo[k], v);
         hi[k] = Math.max(hi[k], v);
       }
-      pos[4 * i + 3] = 1;
+      pos[4 * i + 3] = boost[i];
     }
     this.center = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2];
     this.scale = 1.8 / Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
@@ -170,6 +172,12 @@ export class BrainView {
 
   render(encoder: GPUCommandEncoder, brain: Brain, realDtMs: number) {
     if (performance.now() - this.lastInteraction > 4000) this.angle += realDtMs * 0.00012;
+    // skip views whose panel section is collapsed (zero-size canvas): saves GPU time for the brain
+    if (this.brainCanvas.clientWidth > 0) this.renderBrain(encoder, brain);
+    if (this.eyeCanvas.clientWidth > 0) this.renderEye(encoder, brain);
+  }
+
+  private renderBrain(encoder: GPUCommandEncoder, brain: Brain) {
     const aspect = fit(this.brainCanvas);
     for (const [buf, glow] of [[this.baseCam, 0], [this.glowCam, 1]] as const) {
       const camData = new ArrayBuffer(48);
@@ -179,7 +187,7 @@ export class BrainView {
       new Uint32Array(camData).set([this.ng, glow], 10);
       this.device.queue.writeBuffer(buf, 0, camData);
     }
-    let pass = encoder.beginRenderPass({
+    const pass = encoder.beginRenderPass({
       colorAttachments: [{ view: this.brainCtx.getCurrentTexture().createView(), loadOp: "clear", storeOp: "store", clearValue: [0.02, 0.025, 0.04, 1] }],
     });
     pass.setPipeline(this.basePipe);
@@ -189,10 +197,12 @@ export class BrainView {
     pass.setBindGroup(0, this.glowGroups[brain.gradedCurrent]);
     pass.draw(4, this.n);
     pass.end();
+  }
 
+  private renderEye(encoder: GPUCommandEncoder, brain: Brain) {
     const eyeAspect = fit(this.eyeCanvas);
     this.device.queue.writeBuffer(this.eyeCam, 0, new Float32Array([eyeAspect, 0.022, 0, 0]));
-    pass = encoder.beginRenderPass({
+    const pass = encoder.beginRenderPass({
       colorAttachments: [{ view: this.eyeCtx.getCurrentTexture().createView(), loadOp: "clear", storeOp: "store", clearValue: [0.02, 0.025, 0.04, 1] }],
     });
     pass.setPipeline(this.eyePipe);

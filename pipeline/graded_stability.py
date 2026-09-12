@@ -4,7 +4,7 @@ In the linear regime tau da/dt = -a + gain * A a, any eigenvalue with real part 
 is a mode that grows at rate (Re(lambda) - 1) / tau. A barely unstable mode takes
 minutes to grow out of rounding noise and then saturates the whole network.
 
-  python pipeline/graded_stability.py --gain 2.5
+  python pipeline/graded_stability.py
 """
 
 import argparse
@@ -19,7 +19,7 @@ from sim_reference import Connectome
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--gain", type=float, default=2.5)
+    ap.add_argument("--gain", type=float, default=2.3)
     ap.add_argument("--prune", type=float, default=0.005)
     ap.add_argument("--k", type=int, default=6)
     ap.add_argument("--tau", type=float, default=20.0)

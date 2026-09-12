@@ -1,7 +1,8 @@
 """Bin in-game calibration samples (web ?record=1, dumped by scripts/smoke.mjs) by target position.
 
 Columns: relAz, relEl, msSinceSpawn, DNp53 L, DNp53 R, DNp01 L, DNp01 R, LC4+LPLC2 L, LC4+LPLC2 R,
-DNa02 L, DNa02 R, pIP10 L+R.
+DNa02 L, DNa02 R, pIP10 L+R, then (newer recordings) DNa01 L, DNa01 R, LC10a L, LC10a R, AOTU019 L,
+AOTU019 R, brain time (ms).
 
   python pipeline/analyze_samples.py .cache/smoke/samples.json --keep 0.75
 """

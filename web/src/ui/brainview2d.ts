@@ -2,6 +2,7 @@
 // Draws from activity snapshots sent by the CPU worker a few times per second.
 
 import type { BrainInfo } from "../data/types";
+import { sparseBoost } from "./density";
 
 export class BrainView2D {
   angle = 0.6;
@@ -16,8 +17,10 @@ export class BrainView2D {
   private eyeList: number[] = [];
   private unitsF: Float32Array;
   private unitsU: Uint32Array;
+  private boost: Float32Array;
 
   constructor(private brainCanvas: HTMLCanvasElement, private eyeCanvas: HTMLCanvasElement, private d: BrainInfo) {
+    this.boost = sparseBoost(d.pos, d.n);
     this.brainCtx = brainCanvas.getContext("2d")!;
     this.eyeCtx = eyeCanvas.getContext("2d")!;
     const lo = [Infinity, Infinity, Infinity];
@@ -74,8 +77,9 @@ export class BrainView2D {
 
   render(realDtMs: number) {
     if (performance.now() - this.lastInteraction > 4000) this.angle += realDtMs * 0.00012;
-    this.renderBrain();
-    this.renderEye();
+    // skip views whose panel section is collapsed
+    if (this.brainCanvas.clientWidth > 0) this.renderBrain();
+    if (this.eyeCanvas.clientWidth > 0) this.renderEye();
   }
 
   private renderBrain() {
@@ -113,8 +117,10 @@ export class BrainView2D {
       const ry = ct * y - st * rz;
       const sx = Math.round(w / 2 + rx * half);
       const sy = Math.round(h / 2 - ry * half);
-      // faint grey structure for every cell
-      add(sx, sy, 9, 10, 11);
+      // faint grey structure for every cell, stronger where cells are sparse (additive, so keep
+      // the base low or the packed optic lobes saturate to white)
+      const k0 = this.boost[i];
+      add(sx, sy, 3 * k0, 3.3 * k0, 3.7 * k0);
       let intensity = 0;
       let r = 0;
       let g = 0;

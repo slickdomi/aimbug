@@ -7,8 +7,8 @@ Both the original dataset and these adapted files are licensed under the
 
 Please cite:
 
-> Berg, S. et al. *Sexual dimorphism in the complete connectome of the Drosophila male central nervous system.*
-> bioRxiv (2025), https://doi.org/10.1101/2025.10.09.680999; published in Cell (2026), https://doi.org/10.1016/j.cell.2026.08.015
+> Berg, S. et al. *Sexual dimorphism in the complete Drosophila male central nervous system connectome.*
+> Cell (2026), https://doi.org/10.1016/j.cell.2026.08.015. Preprint: *Sexual dimorphism in the complete connectome of the Drosophila male central nervous system*, bioRxiv (2025), https://doi.org/10.1101/2025.10.09.680999
 
 ## Changes from the original
 

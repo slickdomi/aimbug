@@ -4,13 +4,14 @@ import { loadBrainData } from "./data/loader";
 import type { BrainInfo } from "./data/types";
 import { Arena, type Orbit, type ViewMode } from "./game/arena";
 import { Arena2D } from "./game/arena2d";
-import { Game, type Mode, type Target } from "./game/game";
+import { Game, seedRandom, type Mode, type Target } from "./game/game";
 import { loadSpriteImage, loadSprites, spriteUrl, type SpriteCell } from "./game/sprites";
 import { Brain, type ProbeGroup, type Readback } from "./sim/brain";
 import { CpuBackend } from "./sim/cpuBackend";
 import type { SceneState } from "./sim/cpuSim";
 import { BrainView } from "./ui/brainview";
 import { BrainView2D } from "./ui/brainview2d";
+import { setupPanel } from "./ui/panel";
 
 /** What the game loop needs from either brain backend (WebGPU or the CPU worker). */
 interface BrainControls {
@@ -104,7 +105,6 @@ class Rates {
   get(name: string, side: number) {
     return this.rate.get(`${name}:${side}`) ?? 0;
   }
-
   /** Both hemispheres, slow filter (GAME.pitchTau). */
   slowBoth(name: string) {
     return (this.slowRate.get(`${name}:1`) ?? 0) + (this.slowRate.get(`${name}:2`) ?? 0);
@@ -116,6 +116,7 @@ class Rates {
 }
 
 async function main() {
+  setupPanel($("panel"));
   const loadLabel = $("loadLabel");
   const loadBar = $("loadBar");
   const fail = (msg: string) => {
@@ -274,6 +275,17 @@ async function main() {
   MODEL.gradedGain = num("ggain", MODEL.gradedGain);
   MODEL.coupling = num("couple", MODEL.coupling);
   game.radiusDeg = num("size", game.radiusDeg);
+  // Experiment knobs without a slider: readout filters, neck spring, pitch reference, adaptation,
+  // and a fixed target sequence so settings can be compared on the same targets.
+  GAME.rateTau = num("rateTau", GAME.rateTau);
+  GAME.pitchTau = num("pitchTau", GAME.pitchTau);
+  GAME.neckSpring = num("spring", GAME.neckSpring);
+  GAME.pitchRef = num("pitchRef", GAME.pitchRef);
+  MODEL.adapt = num("adapt", MODEL.adapt);
+  if (query.has("seed")) {
+    seedRandom(num("seed", 1));
+    game.reset();
+  }
   slider("arousal", MODEL.arousal, (v) => `${v.toFixed(1)} mV`, (v) => brain.setArousal(v));
   slider("yaw", yawGain, (v) => `${v.toFixed(1)}°/s/Hz`, (v) => (yawGain = v));
   slider("pitch", pitchGain, (v) => `${v.toFixed(1)}°/s/Hz`, (v) => (pitchGain = v));
@@ -396,6 +408,9 @@ async function main() {
         seizures++;
         runawayMs = 0;
         spikesPerSec = 0;
+        // Snapshot the most active cell types first: the copy is submitted before the reset is written.
+        const n = seizures;
+        (debug.topActive as ((k: number) => Promise<string[]>) | undefined)?.(8).then((top) => console.warn(`seizure ${n} cells: ${top.join(" | ")}`));
         brain.reset(false);
         seizureEl.textContent = `SEIZURE #${seizures} · rebooting fly`;
         seizureEl.classList.add("show");
@@ -419,6 +434,8 @@ async function main() {
           rates.get("DNp53", 1), rates.get("DNp53", 2), rates.get("DNp01", 1), rates.get("DNp01", 2),
           rates.get("LC4", 1) + rates.get("LPLC2", 1), rates.get("LC4", 2) + rates.get("LPLC2", 2),
           rates.get("DNa02", 1), rates.get("DNa02", 2), songRate,
+          rates.get("DNa01", 1), rates.get("DNa01", 2), rates.get("LC10a", 1), rates.get("LC10a", 2),
+          rates.get("AOTU019", 1), rates.get("AOTU019", 2), game.time,
         ]);
       }
     }

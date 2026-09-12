@@ -287,6 +287,8 @@ body {
 }
 
 #panel {
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   padding: 12px;
   border-left: 1px solid var(--line);
@@ -294,6 +296,7 @@ body {
 }
 
 .card {
+  flex: none;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -301,6 +304,9 @@ body {
   margin-bottom: 10px;
 }
 .card h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0 0 8px;
   font-size: 13px;
   font-weight: 700;
@@ -310,6 +316,73 @@ body {
   font-weight: 400;
   color: var(--muted);
   margin-left: 4px;
+}
+
+/* collapsible, pinnable sections (ui/panel.ts) */
+.card-toggle {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+}
+.card-toggle::before {
+  content: "▾";
+  display: inline-block;
+  width: 1em;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.card-pin {
+  flex: none;
+  display: inline-flex;
+  padding: 3px 5px;
+  border-color: transparent;
+  background: none;
+  color: var(--muted);
+  opacity: 0.6;
+}
+.card-pin:hover {
+  opacity: 1;
+}
+.card-pin[aria-pressed="true"] {
+  opacity: 1;
+  color: var(--cool);
+  border-color: var(--cool);
+}
+.card.collapsed {
+  padding-bottom: 10px;
+}
+.card.collapsed h2 {
+  margin-bottom: 0;
+}
+.card.collapsed .card-toggle::before {
+  transform: rotate(-90deg);
+}
+/* #panel outranks the id rules that give #brain and #eye display: block */
+#panel .card.collapsed > :not(h2) {
+  display: none;
+}
+.card.pinned {
+  order: -1;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 10px 14px -8px #000c;
+}
+/* the panel's top padding stays visible above a stuck card: cover what scrolls through it */
+.card.pinned::before {
+  content: "";
+  position: absolute;
+  left: -13px;
+  right: -13px;
+  bottom: 100%;
+  height: 13px;
+  background: var(--panel);
 }
 
 #brain {
@@ -587,6 +660,10 @@ button:hover {
   #brain {
     height: min(260px, 62vw);
   }
+  /* the page scrolls here, so a pinned card sticks flush to the screen edge */
+  .card.pinned::before {
+    display: none;
+  }
   #eye {
     height: min(150px, 38vw);
   }
@@ -637,6 +714,12 @@ button:hover {
     height: 26px;
     font-size: 13px;
     line-height: 24px;
+  }
+  .card-toggle {
+    min-height: 32px;
+  }
+  .card-pin {
+    padding: 8px 10px;
   }
   .controls input[type="range"] {
     height: 28px;

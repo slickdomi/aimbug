@@ -45,7 +45,20 @@ const CHAIN_NAMES = ["", "", "Double Kill", "Triple Kill"];
 const emptyStats = (): Stats => ({ shots: 0, hits: 0, kills: 0, score: 0, ttkSum: 0, onTargetMs: 0, playMs: 0 });
 
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
-const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
+let random = Math.random;
+/** Makes target spawns and movement reproducible (?seed=N), so settings can be compared on the same targets. */
+export function seedRandom(seed: number) {
+  let s = seed >>> 0;
+  random = () => {
+    // mulberry32
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rand = (lo: number, hi: number) => lo + random() * (hi - lo);
 
 /** Aim-trainer rules. All times are brain time, so a slow GPU slows the game, not the fly. */
 export class Game {
@@ -75,7 +88,7 @@ export class Game {
   }
 
   private spawn(t: Target): Target {
-    const side = Math.random() < 0.5 ? -1 : 1;
+    const side = random() < 0.5 ? -1 : 1;
     if (this.mode === "calib") {
       t.az = wrap(this.heading + rand(-40, 40) * DEG);
       t.el = rand(-1, 1) * this.maxEl();
@@ -85,9 +98,9 @@ export class Game {
     }
     t.alive = true;
     const moving = this.mode === "strafe" || this.mode === "duo";
-    t.facing = Math.random() < 0.5 ? -1 : 1;
+    t.facing = random() < 0.5 ? -1 : 1;
     t.vel = moving ? t.facing * rand(10, 28) * DEG : 0;
-    t.velEl = moving ? (Math.random() < 0.5 ? -1 : 1) * rand(3, 10) * DEG : 0;
+    t.velEl = moving ? (random() < 0.5 ? -1 : 1) * rand(3, 10) * DEG : 0;
     t.nextTurn = this.time + rand(900, 2500);
     t.spawnedAt = this.time;
     t.respawnAt = 0;
@@ -144,7 +157,7 @@ export class Game {
         if (this.time >= t.nextTurn) {
           t.vel = -t.vel * rand(0.7, 1.3);
           t.facing = Math.sign(t.vel) || t.facing;
-          t.velEl = (Math.random() < 0.5 ? -1 : 1) * rand(3, 10) * DEG;
+          t.velEl = (random() < 0.5 ? -1 : 1) * rand(3, 10) * DEG;
           t.nextTurn = this.time + rand(900, 2500);
         }
         t.az = wrap(t.az + t.vel * dt);

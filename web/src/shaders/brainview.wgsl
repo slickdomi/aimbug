@@ -1,5 +1,6 @@
 // Point cloud of every neuron at its soma position. Drawn twice: a faint grey,
-// alpha-blended pass for every cell (so the anatomy is visible when quiet), then an
+// alpha-blended pass for every cell (so the anatomy is visible when quiet; pos.w boosts
+// cells in sparse regions, see ui/density.ts), then an
 // additive glow pass for active cells only: spiking cells glow warm with their spike
 // trace, graded optic-lobe cells cyan (depolarised) or magenta (hyperpolarised).
 
@@ -58,7 +59,7 @@ fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VOut 
     o.color = vec4f(color * intensity, 1.0);
     s = cam.size * (1.0 + 1.5 * intensity);
   } else {
-    o.color = vec4f(0.62, 0.66, 0.72, 0.09);
+    o.color = vec4f(0.62, 0.66, 0.72, 0.09 * p4.w);
   }
 
   let corner = vec2f(f32(vi & 1u), f32((vi >> 1u) & 1u)) * 2.0 - 1.0;

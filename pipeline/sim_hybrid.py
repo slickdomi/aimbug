@@ -2,10 +2,11 @@
 
 Optic lobe intrinsic/sensory neurons are non-spiking in the fly. Here they are
 rate units around a tonic operating point:
-    tau_g da/dt = -a + gain * sum_j frac_ij * sign_j * max(a_j, -1)
+    tau_g da/dt = -a + gain * sum_j frac_ij * sign_j * clamp(a_j, -1, amax)
 where frac_ij is the input fraction (synapses from j / all synapses onto i).
-Photoreceptor activity is clamped to local contrast. Graded neurons drive
-spiking neurons with the mean synaptic potential of release rate r0*(1+a).
+Photoreceptor activity is clamped to local contrast. Deviations of graded activity
+from rest drive spiking neurons like a release rate of r0 * a (r0 = MODEL.coupling).
+The defaults match the browser model (web/src/config.ts).
 
   python pipeline/sim_hybrid.py --az 40 --az -40
 """
@@ -192,14 +193,14 @@ def main():
     ap.add_argument("--az", type=float, action="append")
     ap.add_argument("--seconds", type=float, default=0.5)
     ap.add_argument("--warmup", type=float, default=0.2)
-    ap.add_argument("--dt", type=float, default=0.25)
-    ap.add_argument("--dt-g", type=float, default=1.0)
-    ap.add_argument("--tau-g", type=float, default=10.0)
-    ap.add_argument("--gain", type=float, default=0.9)
+    ap.add_argument("--dt", type=float, default=0.5)
+    ap.add_argument("--dt-g", type=float, default=8.33)
+    ap.add_argument("--tau-g", type=float, default=20.0)
+    ap.add_argument("--gain", type=float, default=2.3)
     ap.add_argument("--amax", type=float, default=4.0)
-    ap.add_argument("--r0", type=float, default=20.0, help="graded release rate at rest (Hz-equivalent)")
+    ap.add_argument("--r0", type=float, default=3400.0, help="graded -> spiking release scale (Hz-equivalent), MODEL.coupling")
     ap.add_argument("--ifscale", type=float, default=1.0, help="scale of graded->spiking synapses")
-    ap.add_argument("--radius", type=float, default=15.0)
+    ap.add_argument("--radius", type=float, default=19.0)
     ap.add_argument("--bg", type=float, default=1.0)
     ap.add_argument("--fg", type=float, default=0.05)
     ap.add_argument("--cgain", type=float, default=1.0)
@@ -209,12 +210,12 @@ def main():
     ap.add_argument("--mod-zero", type=int, default=1)
     ap.add_argument("--stim", action="append", help="GROUP:SIDE:RATE extra Poisson drive")
     ap.add_argument("--detail", action="store_true")
-    ap.add_argument("--exp-euler", action="store_true")
-    ap.add_argument("--prune", type=float, default=0.0, help="drop graded edges with input fraction below this")
+    ap.add_argument("--exp-euler", action=argparse.BooleanOptionalAction, default=True)
+    ap.add_argument("--prune", type=float, default=0.005, help="drop graded edges with input fraction below this")
     ap.add_argument("--closed-loop", action="store_true")
-    ap.add_argument("--yaw-gain", type=float, default=3.0, help="deg/s of turning per Hz of DNa02 R-L difference")
+    ap.add_argument("--yaw-gain", type=float, default=10.0, help="deg/s of turning per Hz of DNa02 R-L difference")
     ap.add_argument("--tau-rate", type=float, default=50.0, help="ms, DNa02 rate filter")
-    ap.add_argument("--arousal", type=float, default=0.0)
+    ap.add_argument("--arousal", type=float, default=6.0)
     ap.add_argument("--seed", type=int, default=1)
     args = ap.parse_args()
     args.input = "contrast"

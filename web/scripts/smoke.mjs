@@ -150,6 +150,23 @@ if (await page.isVisible("#loadError")) {
   const brainEl = await page.$("#brain");
   await brainEl.scrollIntoViewIfNeeded();
   await brainEl.screenshot({ path: `${out}/brain.png` });
+  if (process.env.PANEL) {
+    // pin the eye view, collapse the brain, scroll to the bottom: the pinned card should stay on top
+    await page.click('.card[data-section="vision"] .card-pin');
+    await page.click('.card[data-section="brain"] .card-toggle');
+    await page.evaluate(() => {
+      document.getElementById("panel").scrollTop = 1e6;
+      window.scrollTo(0, 1e6);
+    });
+    await page.waitForTimeout(300);
+    const state = await page.evaluate(() => [
+      ...[...document.querySelectorAll(".card[data-section]")].map((c) => `${c.dataset.section}:${c.className} top=${Math.round(c.getBoundingClientRect().top)}`),
+      `brain canvas width=${document.getElementById("brain").clientWidth}`,
+      `eye canvas width=${document.getElementById("eye").clientWidth}`,
+    ]);
+    console.log("PANEL", JSON.stringify(state));
+    await page.screenshot({ path: `${out}/panel.png` });
+  }
 }
 console.log("--- console ---\n" + logs.slice(0, 60).join("\n"));
 await browser.close();

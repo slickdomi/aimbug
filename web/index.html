@@ -42,15 +42,15 @@
     </main>
 
     <aside id="panel">
-      <div class="card">
+      <div class="card" data-section="brain">
         <h2>Brain <small>soma positions, live activity · drag to rotate</small></h2>
         <canvas id="brain"></canvas>
       </div>
-      <div class="card">
+      <div class="card" data-section="vision">
         <h2>What the fly sees <small>L2 lamina columns, both eyes</small></h2>
         <canvas id="eye"></canvas>
       </div>
-      <div class="card">
+      <div class="card" data-section="motor">
         <h2>Motor output</h2>
         <div class="meter"><label>DNa02 steering (left / right)</label><div class="lr"><span id="dnaL"></span><span id="dnaR"></span></div></div>
         <div class="meter"><label>DNp53 pitch (down / up)</label><div class="lr"><span id="pitchD"></span><span id="pitchU"></span></div></div>
@@ -58,7 +58,7 @@
         <div class="meter"><label>pIP10 courtship song (fires at half bar)</label><div class="bar"><span id="song"></span></div></div>
         <div class="meter"><label>DNp01 giant fiber = panic</label><div class="bar"><span id="gf"></span></div></div>
       </div>
-      <div class="card controls">
+      <div class="card controls" data-section="knobs">
         <h2>Knobs</h2>
         <div class="knob">
           <div class="knob-head"><label for="mode">Mode</label><button class="info" type="button" aria-expanded="false" aria-label="About mode">i</button></div>
@@ -76,8 +76,9 @@
           <div class="knob-head"><label for="arousal">Arousal (P1/pC1 drive)</label><button class="info" type="button" aria-expanded="false" aria-label="About arousal">i</button><output id="arousalV"></output></div>
           <input id="arousal" type="range" min="0" max="10" step="0.5" />
           <p class="explain" hidden>
-            Constant input to the male's P1/pC1 courtship-arousal neurons. Without it pIP10 never sings, so the fly
-            never fires. Around 8 mV and up he sings even at an empty room.
+            Constant input to the male's P1 courtship-arousal neurons (the pC1_* types). A female in view already makes
+            pIP10 sing a little; arousal makes the song strong enough to pull the trigger. Around 8 mV and up he sings
+            even at an empty room.
           </p>
         </div>
         <div class="knob">
@@ -119,7 +120,7 @@
           <div class="knob-head"><label for="couple">Optic lobe → brain coupling</label><button class="info" type="button" aria-expanded="false" aria-label="About coupling">i</button><output id="coupleV"></output></div>
           <input id="couple" type="range" min="200" max="4000" step="50" />
           <p class="explain" hidden>
-            How strongly optic lobe activity drives the spiking visual projection neurons (LC4, LPLC2, …) that feed
+            How strongly optic lobe activity drives the spiking visual projection neurons (LC10, LC4, LPLC2, …) that feed
             the central brain. Too low and the fly is blind; too high and both hemispheres fire regardless of where
             the target is.
           </p>
@@ -128,7 +129,7 @@
           <div class="knob-head"><label for="size">Target size (deg)</label><button class="info" type="button" aria-expanded="false" aria-label="About target size">i</button><output id="sizeV"></output></div>
           <input id="size" type="range" min="8" max="26" step="1" />
           <p class="explain" hidden>
-            Half the female's body length as seen by the fly, which is how far away she is. The fly's eye samples
+            Half the female's body length as seen by the fly, which is how far away she is. The model eye samples
             the world every 4.8°, so below about 13° she covers too few eye columns and the fly barely sees her.
           </p>
         </div>
@@ -142,10 +143,10 @@
       <p class="credits">
         Connectome: <a href="https://male-cns.janelia.org/" target="_blank" rel="noopener">Male CNS v1.0</a> (FlyEM/HHMI Janelia, Univ. of Cambridge,
         MRC LMB, Google Research;
-        <a href="https://doi.org/10.1101/2025.10.09.680999" target="_blank" rel="noopener">Berg et al.</a>),
+        <a href="https://doi.org/10.1016/j.cell.2026.08.015" target="_blank" rel="noopener">Berg et al., Cell 2026</a>),
         <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>, re-encoded.
         Spiking model after Shiu et al. 2024; optic lobe modelled as graded units.
-        Aiming emerges from photoreceptors → optic lobe → LC4/LPLC2 → AOTU019 → DNa02 (yaw) and DNp53 (pitch).
+        Aiming emerges from photoreceptors → optic lobe → LC10 → AOTU025/AOTU019 → DNa02 (yaw) and DNp53 (pitch).
         <br />Target photos: <span id="photoCredits"></span>.
       </p>
     </aside>

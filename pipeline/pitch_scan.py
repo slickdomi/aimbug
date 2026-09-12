@@ -5,7 +5,7 @@ level with and below the horizon at a few azimuths, and ranks cell types (side
 resolved) whose rate changes monotonically with elevation at every azimuth.
 Also prints each candidate's connectome-derived receptive-field elevation.
 
-  python pipeline/pitch_scan.py --el 30 --az 0 --az 30 --az -30
+  python pipeline/pitch_scan.py
 """
 
 import argparse
@@ -15,8 +15,9 @@ import numpy as np
 from sim_hybrid import Hybrid, run
 from sim_reference import Connectome, type_side_rates
 
+# Browser settings (web/src/config.ts).
 MODEL_ARGS = dict(
-    gain=2.5, r0=1200, ifscale=1.0, exp_euler=True, dt_g=8.33, tau_g=20.0, prune=0.005, dt=0.5, amax=4.0,
+    gain=2.3, r0=3400.0, ifscale=1.0, exp_euler=True, dt_g=8.33, tau_g=20.0, prune=0.005, dt=0.5, amax=4.0,
     adapt=2.0, tau_adapt=200.0, mod_zero=1, w_lam=0.5, cgain=1.0, bg=1.0, fg=0.05, arousal=6.0,
     stim=None, closed_loop=False, yaw_gain=0.0, tau_rate=50.0, seed=1, input="contrast",
 )
@@ -24,9 +25,9 @@ MODEL_ARGS = dict(
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--el", type=float, default=30.0)
+    ap.add_argument("--el", type=float, default=25.0)
     ap.add_argument("--az", type=float, action="append")
-    ap.add_argument("--radius", type=float, default=16.0)
+    ap.add_argument("--radius", type=float, default=19.0)
     ap.add_argument("--seconds", type=float, default=1.0)
     ap.add_argument("--warmup", type=float, default=0.2)
     ap.add_argument("--top", type=int, default=15)
