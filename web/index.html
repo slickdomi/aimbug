@@ -55,7 +55,8 @@
         <div class="meter"><label>DNa02 steering (left / right)</label><div class="lr"><span id="dnaL"></span><span id="dnaR"></span></div></div>
         <div class="meter"><label>DNp53 pitch (down / up)</label><div class="lr"><span id="pitchD"></span><span id="pitchU"></span></div></div>
         <div class="meter"><label>LC4 + LPLC2 (left / right)</label><div class="lr"><span id="lcL"></span><span id="lcR"></span></div></div>
-        <div class="meter"><label>pIP10 courtship song (fires at half bar)</label><div class="bar"><span id="song"></span></div></div>
+        <div class="meter"><label>pIP10 courtship song (fires at half bar while the sight is open)</label><div class="bar"><span id="song"></span></div></div>
+        <div class="meter"><label>LC10 sight, cells looking straight ahead (open at half bar)</label><div class="bar"><span id="sightBar"></span></div></div>
         <div class="meter"><label>DNp01 giant fiber = panic</label><div class="bar"><span id="gf"></span></div></div>
       </div>
       <div class="card controls" data-section="knobs">
@@ -76,9 +77,9 @@
           <div class="knob-head"><label for="arousal">Arousal (P1/pC1 drive)</label><button class="info" type="button" aria-expanded="false" aria-label="About arousal">i</button><output id="arousalV"></output></div>
           <input id="arousal" type="range" min="0" max="10" step="0.5" />
           <p class="explain" hidden>
-            Constant input to the male's P1 courtship-arousal neurons (the pC1_* types). A female in view already makes
-            pIP10 sing a little; arousal makes the song strong enough to pull the trigger. Around 8 mV and up he sings
-            even at an empty room.
+            Constant input to the male's P1 courtship-arousal neurons (the pC1_* types). Without it pIP10 barely sings,
+            so the fly hardly fires. At the default 6 mV he sings in bouts even with no female in view (the sight
+            keeps him from shooting at nothing); from about 8 mV he sings almost nonstop and seizes more often.
           </p>
         </div>
         <div class="knob">
@@ -105,7 +106,16 @@
           <p class="explain" hidden>
             How strong the pIP10 courtship song (left + right, smoothed) must get before the fly fires. It fires once per
             song bout. Lower values mean more shots. The song rate doesn't depend on where the crosshair is, so this
-            changes how often the fly shoots, not how well.
+            changes how often the fly shoots; the sight below decides how well.
+          </p>
+        </div>
+        <div class="knob">
+          <div class="knob-head"><label for="sight">Sight</label><button class="info" type="button" aria-expanded="false" aria-label="About sight">i</button><output id="sightV"></output></div>
+          <input id="sight" type="range" min="0" max="10" step="0.5" />
+          <p class="explain" hidden>
+            A song bout only fires while the LC10 cells looking straight ahead (receptive field within 10° of the
+            crosshair) average at least this rate. They are the fly's own sight: busy when she is centred, quiet when
+            she is off to the side. Higher is pickier; 0 fires on song alone.
           </p>
         </div>
         <div class="knob">
@@ -113,7 +123,7 @@
           <input id="ggain" type="range" min="1.5" max="3" step="0.05" />
           <p class="explain" hidden>
             Recurrent gain of the graded (non-spiking) optic lobe. Higher values carry visual signals further. Above
-            about 2.39 the lamina feedback loops become unstable and activity slowly saturates.
+            about 2.39 the lamina feedback loops become unstable and activity slowly creeps up.
           </p>
         </div>
         <div class="knob">
@@ -121,8 +131,8 @@
           <input id="couple" type="range" min="200" max="4000" step="50" />
           <p class="explain" hidden>
             How strongly optic lobe activity drives the spiking visual projection neurons (LC10, LC4, LPLC2, …) that feed
-            the central brain. Too low and the fly is blind; too high and both hemispheres fire regardless of where
-            the target is.
+            the central brain. Too low and the fly barely sees her: at 1000 it hardly steers and the sight
+            never opens. The sight threshold assumes the default, and higher values bring more seizures.
           </p>
         </div>
         <div class="knob">
@@ -130,7 +140,8 @@
           <input id="size" type="range" min="8" max="26" step="1" />
           <p class="explain" hidden>
             Half the female's body length as seen by the fly, which is how far away she is. The model eye samples
-            the world every 4.8°, so below about 13° she covers too few eye columns and the fly barely sees her.
+            the world every 4.8°, so a smaller female covers fewer eye columns: at 13° the steering signal is less than half as strong
+            and the sight opens half as often, and at 11° the fly almost stops shooting.
           </p>
         </div>
         <div class="buttons">
@@ -146,7 +157,7 @@
         <a href="https://doi.org/10.1016/j.cell.2026.08.015" target="_blank" rel="noopener">Berg et al., Cell 2026</a>),
         <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>, re-encoded.
         Spiking model after Shiu et al. 2024; optic lobe modelled as graded units.
-        Aiming emerges from photoreceptors → optic lobe → LC10 → AOTU025/AOTU019 → DNa02 (yaw) and DNp53 (pitch).
+        Aiming emerges from photoreceptors → optic lobe → LC10 → AOTU025/AOTU019 → DNa02 (yaw) and DNp53 (pitch); the LC10 cells looking straight ahead decide when a song bout fires.
         <br />Target photos: <span id="photoCredits"></span>.
       </p>
     </aside>

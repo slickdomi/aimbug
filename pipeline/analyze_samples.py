@@ -1,8 +1,8 @@
-"""Bin in-game calibration samples (web ?record=1, dumped by scripts/smoke.mjs) by target position.
+"""Bin in-game samples (web ?bench=1&record=1, dumped by scripts/smoke.mjs) by target position.
 
 Columns: relAz, relEl, msSinceSpawn, DNp53 L, DNp53 R, DNp01 L, DNp01 R, LC4+LPLC2 L, LC4+LPLC2 R,
 DNa02 L, DNa02 R, pIP10 L+R, then (newer recordings) DNa01 L, DNa01 R, LC10a L, LC10a R, AOTU019 L,
-AOTU019 R, brain time (ms).
+AOTU019 R, brain time (ms), sight (Hz per LC10 sight cell).
 
   python pipeline/analyze_samples.py .cache/smoke/samples.json --keep 0.75
 """
@@ -20,6 +20,7 @@ def main():
     ap.add_argument("path")
     ap.add_argument("--keep", type=float, default=1.0, help="fraction of samples to keep from the start")
     ap.add_argument("--settle", type=float, default=300.0, help="ms after spawn to ignore")
+    ap.add_argument("--sight", type=float, default=3.0, help="sight threshold (Hz per cell) for the gate statistics")
     args = ap.parse_args()
     s = np.array(json.load(open(args.path)), dtype=np.float64)
     s = s[: int(len(s) * args.keep)]
@@ -55,6 +56,16 @@ def main():
     for thr in (8, 12, 16, 20, 25, 30):
         over = m & (d["song"] >= thr)
         print(f"  threshold {thr:2d} Hz: over {100 * over.sum() / m.sum():5.1f}% of time, mean offset when over {off[over].mean() if over.any() else float('nan'):5.1f} deg (all: {off[m].mean():.1f})")
+
+    if s.shape[1] > 19:
+        sight = s[:, 19]
+        print(f"\nLC10 sight by crosshair offset (gate at {args.sight} Hz):")
+        for lo, hi in [(0, 7), (7, 13.3), (13.3, 20), (20, 30), (30, 60), (60, 180)]:
+            b = m & (off >= lo) & (off < hi)
+            if b.any():
+                print(f"  {lo:5.1f}-{hi:5.1f} deg  n {b.sum():5d}  mean {sight[b].mean():5.1f} Hz  open {np.mean(sight[b] >= args.sight):6.1%}")
+        on, far = m & (off < 13.3), m & (off > 20)
+        print(f"  open in the kill box (< 13.3 deg) {np.mean(sight[on] >= args.sight):.1%}, more than 20 deg off {np.mean(sight[far] >= args.sight):.1%}")
 
 
 if __name__ == "__main__":

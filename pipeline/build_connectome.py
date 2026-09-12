@@ -42,7 +42,7 @@ NT_SIGN = {
     "octopamine": 1,
 }
 
-# Named groups the browser needs by index. Values are regexes on `type`.
+# Named groups (neuron indices in meta.json) for the reference sims in pipeline/. Values are regexes on `type`.
 GROUPS = {
     "DNa01": r"^DNa01$",
     "DNa02": r"^DNa02$",

@@ -48,8 +48,8 @@ self.onmessage = async (ev: MessageEvent<CpuIn>) => {
         loadEyeAtlas(msg.spriteUrl),
       ]);
       sim = new CpuSim(data, msg.model, atlas);
-      const { meta, types, n, ng, typeId, side, superclass, pos, visUnits, visCount, stats } = data;
-      post({ kind: "ready", info: { meta, types, n, ng, typeId: typeId.slice(), side: side.slice(), superclass: superclass.slice(), pos: pos.slice(), visUnits: visUnits.slice(0), visCount, stats } });
+      const { meta, types, n, ng, typeId, side, superclass, pos, rf, visUnits, visCount, stats } = data;
+      post({ kind: "ready", info: { meta, types, n, ng, typeId: typeId.slice(), side: side.slice(), superclass: superclass.slice(), pos: pos.slice(), rf: rf.slice(), visUnits: visUnits.slice(0), visCount, stats } });
       return;
     }
     if (!sim) return;

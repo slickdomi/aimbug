@@ -4,7 +4,7 @@ import { loadBrainData } from "./data/loader";
 import type { BrainInfo } from "./data/types";
 import { Arena, type Orbit, type ViewMode } from "./game/arena";
 import { Arena2D } from "./game/arena2d";
-import { Game, seedRandom, type Mode, type Target } from "./game/game";
+import { Game, type Mode, type Target } from "./game/game";
 import { loadSpriteImage, loadSprites, spriteUrl, type SpriteCell } from "./game/sprites";
 import { Brain, type ProbeGroup, type Readback } from "./sim/brain";
 import { CpuBackend } from "./sim/cpuBackend";
@@ -69,6 +69,12 @@ function probesFor(d: BrainInfo): { groups: ProbeGroup[]; idx: Uint32Array } {
       groups.push({ name, side, start, count: idx.length - start });
     }
   }
+  // Sight: LC10 cells whose connectome receptive field points within GAME.sightRadiusDeg of straight ahead.
+  const start = idx.length;
+  for (let i = 0; i < d.n; i++) {
+    if (d.rf[3 * i + 2] > 0 && d.types[d.typeId[i]].startsWith("LC10") && Math.hypot(d.rf[3 * i], d.rf[3 * i + 1]) < GAME.sightRadiusDeg) idx.push(i);
+  }
+  groups.push({ name: "sight", side: 0, start, count: idx.length - start });
   return { groups, idx: new Uint32Array(idx) };
 }
 
@@ -128,6 +134,9 @@ async function main() {
 
   // URL overrides, e.g. ?mode=static&yaw=0 (yaw may be negative: mirrored steering), ?cpu=1 forces the fallback.
   const query = new URLSearchParams(location.search);
+  // ?bench=1: benchmark tools (bench/bench.ts, a separate chunk), used by web/scripts/smoke.mjs
+  const bench = query.has("bench") ? await import("./bench/bench") : null;
+  bench?.configure(query);
   let quip = 0;
   const progress = (label: string, frac: number) => {
     loadLabel.textContent = `${label} · ${LOADING_QUIPS[Math.floor(quip++ / 40) % LOADING_QUIPS.length]}`;
@@ -147,7 +156,7 @@ async function main() {
   let canThirdPerson: boolean;
   let readyForStep: () => boolean;
   let renderFrame: (now: number, realDt: number, brainMs: number) => void;
-  const debug = { game, MODEL, GAME, seizures: () => seizures } as Record<string, unknown>;
+  let gpuBrainForBench: Brain | null = null;
   try {
     if (device) {
       device.lost.then((info) => fail(`GPU device lost: ${info.message}`));
@@ -173,23 +182,7 @@ async function main() {
         device.queue.submit([encoder.finish()]);
         gpuBrain.afterSubmit();
       };
-      // Debug: most active cell types (spike trace ~ Hz * actTau), for chasing runaway activity.
-      debug.topActive = async (k = 20) => {
-        const act = await gpuBrain.readActivity();
-        const byType = new Map<string, { sum: number; n: number; sc: string }>();
-        for (let i = full.ng; i < full.n; i++) {
-          const key = full.types[full.typeId[i]] || "(untyped)";
-          const e = byType.get(key) ?? { sum: 0, n: 0, sc: full.meta.superclasses[full.superclass[i]] };
-          e.sum += act[i];
-          e.n++;
-          byType.set(key, e);
-        }
-        const hz = 1000 / MODEL.actTau;
-        return [...byType.entries()]
-          .sort((a, b) => b[1].sum - a[1].sum)
-          .slice(0, k)
-          .map(([t, e]) => `${t}(${e.sc}) n=${e.n} total ${(e.sum * hz).toFixed(0)} Hz, ${((e.sum * hz) / e.n).toFixed(0)} Hz/cell`);
-      };
+      gpuBrainForBench = gpuBrain;
     } else {
       // No WebGPU: same model in a CPU worker, Canvas 2D rendering, first person only.
       const cpu = new CpuBackend(MODEL);
@@ -232,11 +225,6 @@ async function main() {
     .map((c) => `<a href="${c.url}" target="_blank" rel="noopener">${c.credit}</a> (<a href="${c.licenseUrl}" target="_blank" rel="noopener">${c.license}</a>, background removed)`)
     .join("; ");
   const rates = new Rates(probes.groups);
-  debug.rates = rates;
-  debug.brain = brain;
-  debug.backend = device ? "webgpu" : "cpu";
-  // Debug handle for the headless smoke test and the devtools console.
-  (window as unknown as { aimbug: object }).aimbug = debug;
 
   /** Scene description for the CPU eye (the WebGPU path uploads it as a uniform instead). */
   function sceneFor(g: Game): SceneState {
@@ -266,30 +254,21 @@ async function main() {
     sync(value);
   };
   const modeParam = query.get("mode");
-  if (modeParam === "static" || modeParam === "strafe" || modeParam === "duo" || modeParam === "calib") {
+  if (modeParam === "static" || modeParam === "strafe" || modeParam === "duo") {
     game.mode = modeParam;
-    if (modeParam !== "calib") $<HTMLSelectElement>("mode").value = modeParam;
+    $<HTMLSelectElement>("mode").value = modeParam;
     game.reset();
   }
   MODEL.arousal = num("arousal", MODEL.arousal);
   MODEL.gradedGain = num("ggain", MODEL.gradedGain);
   MODEL.coupling = num("couple", MODEL.coupling);
   game.radiusDeg = num("size", game.radiusDeg);
-  // Experiment knobs without a slider: readout filters, neck spring, pitch reference, adaptation,
-  // and a fixed target sequence so settings can be compared on the same targets.
-  GAME.rateTau = num("rateTau", GAME.rateTau);
-  GAME.pitchTau = num("pitchTau", GAME.pitchTau);
-  GAME.neckSpring = num("spring", GAME.neckSpring);
-  GAME.pitchRef = num("pitchRef", GAME.pitchRef);
-  MODEL.adapt = num("adapt", MODEL.adapt);
-  if (query.has("seed")) {
-    seedRandom(num("seed", 1));
-    game.reset();
-  }
+  GAME.sightThreshold = num("sight", GAME.sightThreshold);
   slider("arousal", MODEL.arousal, (v) => `${v.toFixed(1)} mV`, (v) => brain.setArousal(v));
   slider("yaw", yawGain, (v) => `${v.toFixed(1)}°/s/Hz`, (v) => (yawGain = v));
   slider("pitch", pitchGain, (v) => `${v.toFixed(1)}°/s/Hz`, (v) => (pitchGain = v));
   slider("trigger", songThreshold, (v) => `${v.toFixed(0)} Hz`, (v) => (songThreshold = v));
+  slider("sight", GAME.sightThreshold, (v) => (v > 0 ? `${v.toFixed(1)} Hz` : "off"), (v) => (GAME.sightThreshold = v));
   slider("ggain", MODEL.gradedGain, (v) => v.toFixed(2), (v) => {
     MODEL.gradedGain = v;
     brain.writeParams();
@@ -392,12 +371,13 @@ async function main() {
     void scorePop.offsetWidth; // restart the animation
     scorePop.classList.add("show");
   };
-  // Song vs. aim statistics (read by the smoke test): pIP10 rate binned by crosshair offset.
-  const songBins = [10, 20, 40, 80, 180].map((maxDeg) => ({ maxDeg, samples: 0, rateSum: 0, overThreshold: 0 }));
-  debug.songBins = songBins;
-  // ?record=1: keep per-readback samples for offline calibration (smoke test dumps them).
-  const samples: number[][] = [];
-  if (query.has("record")) debug.samples = samples;
+  const tools = bench?.attach(
+    {
+      game, rates, data, probes: probes.groups, gpuBrain: gpuBrainForBench,
+      seizures: () => seizures, songThreshold: () => songThreshold, paused: () => paused,
+    },
+    query,
+  );
   brain.onReadback = (r) => {
     rates.update(r);
     if (r.frameMs > 0) {
@@ -408,9 +388,7 @@ async function main() {
         seizures++;
         runawayMs = 0;
         spikesPerSec = 0;
-        // Snapshot the most active cell types first: the copy is submitted before the reset is written.
-        const n = seizures;
-        (debug.topActive as ((k: number) => Promise<string[]>) | undefined)?.(8).then((top) => console.warn(`seizure ${n} cells: ${top.join(" | ")}`));
+        tools?.onSeizure(seizures);
         brain.reset(false);
         seizureEl.textContent = `SEIZURE #${seizures} · rebooting fly`;
         seizureEl.classList.add("show");
@@ -418,34 +396,16 @@ async function main() {
         console.warn(`seizure ${seizures} at brain ${(r.brainTime / 1000).toFixed(1)}s`);
       }
     }
-    const songRate = rates.get("pIP10", 1) + rates.get("pIP10", 2);
-    const alive = game.targets.filter((t) => t.alive);
-    if (alive.length && !paused) {
-      const offDeg = (Math.min(...alive.map((t) => game.offset(t))) * 180) / Math.PI;
-      const bin = songBins.find((b) => offDeg < b.maxDeg)!;
-      bin.samples++;
-      bin.rateSum += songRate;
-      bin.overThreshold += +(songRate >= songThreshold);
-      if (debug.samples && samples.length < 50000) {
-        const t = alive[0];
-        const deg = 180 / Math.PI;
-        samples.push([
-          game.relAz(t) * deg, game.relEl(t) * deg, game.time - t.spawnedAt,
-          rates.get("DNp53", 1), rates.get("DNp53", 2), rates.get("DNp01", 1), rates.get("DNp01", 2),
-          rates.get("LC4", 1) + rates.get("LPLC2", 1), rates.get("LC4", 2) + rates.get("LPLC2", 2),
-          rates.get("DNa02", 1), rates.get("DNa02", 2), songRate,
-          rates.get("DNa01", 1), rates.get("DNa01", 2), rates.get("LC10a", 1), rates.get("LC10a", 2),
-          rates.get("AOTU019", 1), rates.get("AOTU019", 2), game.time,
-        ]);
-      }
-    }
+    tools?.onReadback();
     for (let k = 0; k < Math.min(rates.spikes("pIP10"), 2); k++) sound.songPulse(k * 0.035);
     // One shot per song bout: fire when the pIP10 rate crosses the threshold, re-arm once it
     // has dropped below half of it. A male serenading continuously only fires once.
     const bout = rates.slowBoth("pIP10"); // slow filter so flicker around the threshold is one bout
     if (bout < songThreshold / 2) triggerArmed = true;
     arena.song = Math.min(1, bout / (2 * songThreshold));
-    const shot = triggerArmed && bout >= songThreshold && !paused ? game.trigger() : null;
+    // ...and only while the LC10 cells looking straight ahead see something (GAME.sightThreshold).
+    const sightOpen = GAME.sightThreshold <= 0 || rates.get("sight", 0) >= GAME.sightThreshold;
+    const shot = triggerArmed && bout >= songThreshold && sightOpen && !paused ? game.trigger() : null;
     if (shot) {
       triggerArmed = false;
       sound.pew();
@@ -475,7 +435,8 @@ async function main() {
     setLR($("lcL"), $("lcR"), rates.get("LC4", 1) + rates.get("LPLC2", 1), rates.get("LC4", 2) + rates.get("LPLC2", 2), 40);
     setLR($("pitchD"), $("pitchU"), Math.max(0, -pitchDrive()), Math.max(0, pitchDrive()), 3);
     $("song").style.width = `${Math.min(100, ((rates.get("pIP10", 1) + rates.get("pIP10", 2)) / (2 * songThreshold)) * 100)}%`;
-    $("gf").style.width = `${Math.min(100, (rates.get("DNp01", 1) + rates.get("DNp01", 2)) * 0.8)}%`;
+    $("sightBar").style.width =`${Math.min(100, (rates.get("sight", 0) / (2 * Math.max(GAME.sightThreshold, 1))) * 100)}%`;
+    $("gf").style.width =`${Math.min(100, (rates.get("DNp01", 1) + rates.get("DNp01", 2)) * 0.8)}%`;
     if (now - lastHud < 200) return;
     lastHud = now;
     const s = game.stats;

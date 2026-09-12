@@ -30,6 +30,7 @@ export interface BrainData {
   side: Uint8Array; // 0 unknown, 1 left, 2 right
   superclass: Uint8Array;
   pos: Float32Array; // xyz micrometres, NaN if unknown
+  rf: Float32Array; // connectome receptive field per neuron: azimuth, elevation (deg), strength (0 = not visual)
   // spiking -> spiking CSR by presynaptic neuron (global indices, n+1 offsets);
   // packed = target (18 bits) | signed synapse count (14 bits) << 18
   spikeOffsets: Uint32Array;
@@ -49,7 +50,7 @@ export interface BrainData {
 }
 
 /** The parts of BrainData the main thread needs when the brain itself runs in a CPU worker. */
-export type BrainInfo = Pick<BrainData, "meta" | "types" | "n" | "ng" | "typeId" | "side" | "superclass" | "pos" | "visUnits" | "visCount" | "stats">;
+export type BrainInfo = Pick<BrainData, "meta" | "types" | "n" | "ng" | "typeId" | "side" | "superclass" | "pos" | "rf" | "visUnits" | "visCount" | "stats">;
 
 export type WorkerIn ={ url: string; prune: number; laminaWeight: number; wSyn: number; tauS: number };
 export type WorkerOut =

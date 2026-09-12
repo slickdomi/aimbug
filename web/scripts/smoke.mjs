@@ -1,6 +1,8 @@
 // Headless smoke test: serves dist/ (or tests APP_URL, e.g. a running Vite dev server),
-// opens it in Chromium with WebGPU, lets the fly play for a while, and reports
-// console errors, HUD stats and a screenshot. Runs inside Docker (see README).
+// opens it in Chromium with WebGPU and the benchmark tools (?bench=1), lets the fly play for
+// a while, and reports console errors, HUD stats and screenshots. Options are environment
+// variables (SECONDS, QUERY, ADAPTER, QUIET, MOBILE, PANEL, POPUP, INTERACT, SURVEY; see README).
+// Runs inside Docker.
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
@@ -53,7 +55,10 @@ const logs = [];
 page.on("console", (m) => logs.push(`[${m.type()}] ${m.text()}`));
 page.on("pageerror", (e) => logs.push(`[pageerror] ${e.message}`));
 
-await page.goto(`${process.env.APP_URL ?? `http://127.0.0.1:4173${basePath}`}${process.env.QUERY ?? ""}`);
+// The game only loads its benchmark tools (window.aimbug, recording, surveys) with ?bench=1.
+const query = new URLSearchParams(process.env.QUERY ?? "");
+query.set("bench", "1");
+await page.goto(`${process.env.APP_URL ?? `http://127.0.0.1:4173${basePath}`}?${query}`);
 const t0 = Date.now();
 await page.waitForSelector("#start:not([hidden]), #loadError:not([hidden])", { timeout: 180_000 });
 console.log(`loaded in ${((Date.now() - t0) / 1000).toFixed(1)}s:`, await page.textContent("#loadLabel"));
@@ -61,8 +66,26 @@ if (await page.isVisible("#loadError")) {
   console.log("LOAD ERROR:", await page.textContent("#loadError"));
 } else {
   await page.click("#start");
+  // SURVEY=1: every 0.5 s, record the target position and the activity of every cell type (see main.ts)
+  const survey = process.env.SURVEY ? { labels: await page.evaluate(() => window.aimbug.surveyLabels()), meta: [], rows: [] } : null;
+  const surveySample = async () => {
+    const s = await page.evaluate(async () => {
+      const { game } = window.aimbug;
+      const t = game.targets[0];
+      const deg = 180 / Math.PI;
+      const meta = { alive: t.alive, az: game.relAz(t) * deg, el: game.relEl(t) * deg, age: game.time - t.spawnedAt };
+      return { meta, values: await window.aimbug.surveySample() };
+    });
+    survey.meta.push(s.meta);
+    survey.rows.push(Float32Array.from(s.values));
+  };
   for (let s = 0; s < seconds; s++) {
-    await page.waitForTimeout(1000);
+    if (survey) {
+      await page.waitForTimeout(450);
+      await surveySample();
+      await page.waitForTimeout(450);
+      await surveySample();
+    } else await page.waitForTimeout(1000);
     const line = await page.evaluate(() => {
       const { game, rates } = window.aimbug;
       const deg = (r) => Math.round((r * 180) / Math.PI);
@@ -110,6 +133,12 @@ if (await page.isVisible("#loadError")) {
     })),
   );
   console.log("SONG", JSON.stringify(bins));
+  if (survey) {
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(`${out}/survey.json`, JSON.stringify({ labels: survey.labels, meta: survey.meta }));
+    await writeFile(`${out}/survey.bin`, Buffer.concat(survey.rows.map((r) => Buffer.from(r.buffer))));
+    console.log(`survey: ${survey.rows.length} samples x ${survey.labels.length} columns`);
+  }
   const samples = await page.evaluate(() => window.aimbug.samples ?? null);
   if (samples) {
     const { writeFile } = await import("node:fs/promises");

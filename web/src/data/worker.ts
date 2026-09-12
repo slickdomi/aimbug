@@ -9,7 +9,7 @@ self.onmessage = async (ev: MessageEvent<WorkerIn>) => {
   try {
     const d = await loadBrainData(ev.data, (label, done, total) => post({ kind: "progress", label, done, total }));
     post({ kind: "done", data: d }, [
-      d.typeId.buffer, d.side.buffer, d.superclass.buffer, d.pos.buffer,
+      d.typeId.buffer, d.side.buffer, d.superclass.buffer, d.pos.buffer, d.rf.buffer,
       d.spikeOffsets.buffer, d.spikeEdges.buffer, d.gradedOffsets.buffer, d.gradedEntries,
       d.ifaceOffsets.buffer, d.ifaceEntries, d.visUnits,
     ]);

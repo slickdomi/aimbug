@@ -449,6 +449,9 @@ body {
   left: 0;
   background: var(--hot);
 }
+#sightBar {
+  background: var(--cool);
+}
 
 .knob {
   margin: 10px 0;

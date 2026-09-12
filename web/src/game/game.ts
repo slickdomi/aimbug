@@ -2,10 +2,9 @@ import { GAME } from "../config";
 
 const DEG = Math.PI / 180;
 
-export type Mode = "strafe" | "static" | "duo" | "calib";
+export type Mode = "strafe" | "static" | "duo";
 
 const LIFETIME_MS = 6000; // a female that isn't shot flies off and another lands
-const CALIB_MS = 1200; // calibration mode: teleport this often
 
 export interface Target {
   az: number; // world azimuth, radians
@@ -46,19 +45,11 @@ const emptyStats = (): Stats => ({ shots: 0, hits: 0, kills: 0, score: 0, ttkSum
 
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 let random = Math.random;
-/** Makes target spawns and movement reproducible (?seed=N), so settings can be compared on the same targets. */
-export function seedRandom(seed: number) {
-  let s = seed >>> 0;
-  random = () => {
-    // mulberry32
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+/** Replaces the random source for target spawns and movement (e.g. a seeded one, for repeatable runs). */
+export function setRandom(source: () => number) {
+  random = source;
 }
-const rand = (lo: number, hi: number) => lo + random() * (hi - lo);
+const rand =(lo: number, hi: number) => lo + random() * (hi - lo);
 
 /** Aim-trainer rules. All times are brain time, so a slow GPU slows the game, not the fly. */
 export class Game {
@@ -67,6 +58,8 @@ export class Game {
   time = 0;
   mode: Mode = "strafe";
   radiusDeg = GAME.targetRadiusDeg;
+  lifetimeMs = LIFETIME_MS;
+  place: ((t: Target) => void) | null = null; // optional override of where a new female lands
   targets: Target[] = [];
   stats: Stats = emptyStats();
   lastShot = -1e9;
@@ -89,13 +82,9 @@ export class Game {
 
   private spawn(t: Target): Target {
     const side = random() < 0.5 ? -1 : 1;
-    if (this.mode === "calib") {
-      t.az = wrap(this.heading + rand(-40, 40) * DEG);
-      t.el = rand(-1, 1) * this.maxEl();
-    } else {
-      t.az = wrap(this.heading + side * rand(35, 100) * DEG);
-      t.el = rand(-0.7, 0.7) * this.maxEl();
-    }
+    t.az = wrap(this.heading + side * rand(35, 100) * DEG);
+    t.el = rand(-0.7, 0.7) * this.maxEl();
+    this.place?.(t);
     t.alive = true;
     const moving = this.mode === "strafe" || this.mode === "duo";
     t.facing = random() < 0.5 ? -1 : 1;
@@ -149,7 +138,7 @@ export class Game {
         if (this.time >= t.respawnAt) this.spawn(t);
         continue;
       }
-      if (this.time - t.spawnedAt > (this.mode === "calib" ? CALIB_MS : LIFETIME_MS)) {
+      if (this.time - t.spawnedAt > this.lifetimeMs) {
         this.spawn(t);
         continue;
       }

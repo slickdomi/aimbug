@@ -56,16 +56,25 @@ export const GAME = {
   neckSpring: 0.3,
   maxPitchDeg: 50,
   // Trigger: one shot per pIP10 song bout (filtered rate crossing the threshold), not per spike.
-  // Song rate does not depend on aim (analyze_samples.py), so this only sets how trigger-happy it is.
-  songThreshold: 15, // Hz, pIP10 left + right, slow-filtered (~0.6 shots/s in smoke trials)
+  // Song rate does not depend on aim (analyze_samples.py), so this only sets how trigger-happy the fly is;
+  // the sight below decides where it fires.
+  songThreshold: 10, // Hz, pIP10 left + right, slow-filtered (with the sight: ~0.5 shots/s in smoke trials)
   fireCooldown: 1000, // ms minimum between shots
+  // Sight: a song bout only fires while the LC10 cells looking straight ahead (connectome receptive field
+  // within sightRadiusDeg of the crosshair) are active. In a GPU survey with the fly held still, their
+  // mean rate told a target in the kill box from one > 20 deg off with AUC 0.97 (10 deg) or 1.00 (15 deg);
+  // pIP10 song: 0.60. 5-minute GPU trials with a 10 Hz song trigger, seeds 1 and 2: no sight (15 Hz song)
+  // 37-41 % accuracy, 14-16 kills/min; 15 deg at 5 Hz 74-75 %, 23-27; 10 deg at 3 Hz 84-86 %, 23-24,
+  // because the narrow group rarely opens for near misses; 10 deg at 4 Hz 88 %, 17 (seed 1 only).
+  sightRadiusDeg: 10,
+  sightThreshold: 3, // Hz per sight cell (fast filter); 0 = no sight, fire on song alone
   // Seizure: the cholinergic lLN1_bc clique in the antennal lobe (~4 mV of recurrent drive per Hz)
   // occasionally ignites after minutes; when the whole brain runs away, the spiking state is reset.
   seizureSpikesPerSec: 90000,
   seizureMs: 300,
-  // Half body length as seen by the fly (her distance). The eye samples every 4.8 deg, so below
-  // ~13 deg the female covers too few columns (11 deg: ~1 % on target). With coupling 3000 and
-  // spring 0.6: 16 deg -> ~21 % accuracy, 19 deg -> ~37 % accuracy.
+  // Half body length as seen by the fly (her distance). The eye samples every 4.8 deg, so smaller
+  // females cover fewer columns: with the current defaults (90 s GPU runs), at 13 deg the steering signal
+  // is less than half as strong and the sight opens half as often (0.24 shots/s), at 11 deg 0.08 shots/s.
   targetRadiusDeg: 19,
   maxBrainMsPerFrame: 25,
   maxStepsPerFrame: 64,

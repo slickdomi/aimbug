@@ -60,6 +60,7 @@ export async function loadBrainData(req: WorkerIn, onProgress: Progress): Promis
   const side = new Uint8Array(nbuf.slice(11 * n, 12 * n));
   const sign = new Int8Array(nbuf.slice(12 * n, 13 * n));
   const pos = new Float32Array(nbuf.slice(16 * n, 28 * n));
+  const rf = new Float32Array(nbuf.slice(28 * n, 40 * n)); // connectome receptive field: azimuth, elevation (deg), strength
   const col = new Float32Array(nbuf.slice(40 * n, 48 * n));
   const nt = new Uint8Array(nbuf.slice(48 * n, 49 * n));
 
@@ -199,6 +200,7 @@ export async function loadBrainData(req: WorkerIn, onProgress: Progress): Promis
     side,
     superclass,
     pos,
+    rf,
     spikeOffsets,
     spikeEdges,
     gradedOffsets,
